@@ -9,10 +9,11 @@ async def fetch_buildings(
     username: str,
     password: str,
 ) -> list[dict]:
+    # BBR calls DAWA's adgangsadresseid "husnummer"
     response = await client.get(
         f"{DATAFORDELER_BASE}/bygning",
         params={
-            "AdgangsadresseId": adgangsadresse_id,
+            "husnummer": adgangsadresse_id,
             "username": username,
             "password": password,
             "format": "JSON",

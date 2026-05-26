@@ -48,30 +48,18 @@ def primary_building(buildings: list[dict]) -> dict:
         return {}
     residential = [
         b for b in buildings
-        if str(b.get("byg021BygningensAnvendelse", "") or
-               b.get("BYG_ANVEND_KODE", "")) in HELARSBUS_CODES | FRITIDSHUS_CODES
+        if str(b.get("byg021BygningensAnvendelse", "")) in HELARSBUS_CODES | FRITIDSHUS_CODES
     ]
     candidates = residential if residential else buildings
-
-    def area(b: dict) -> float:
-        return (
-            b.get("byg038SamletBygningsareal")
-            or b.get("BEBO_ARL")
-            or 0
-        )
-
-    return max(candidates, key=area)
+    return max(candidates, key=lambda b: b.get("byg038SamletBygningsareal") or 0)
 
 
 def extract_building_data(building: dict) -> tuple[str | None, int | None, int | None, int | None]:
     """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar)."""
-    code = (
-        str(building.get("byg021BygningensAnvendelse") or building.get("BYG_ANVEND_KODE") or "")
-        or None
-    )
-    boligareal = building.get("byg038SamletBygningsareal") or building.get("BEBO_ARL")
-    bebygget = building.get("byg041BebyggetAreal") or building.get("BYG_BEBYGGET_ARL")
-    aar = building.get("byg_opforelsesaar") or building.get("OPFOERELSE_AAR")
+    code = str(building.get("byg021BygningensAnvendelse") or "") or None
+    boligareal = building.get("byg038SamletBygningsareal")
+    bebygget = building.get("byg041BebyggetAreal")
+    aar = building.get("byg026Opførelsesår")
     return code, boligareal, bebygget, aar
 
 
