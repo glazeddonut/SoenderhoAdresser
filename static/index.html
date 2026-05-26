@@ -66,10 +66,12 @@
         </div>
 
         <div class="control-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="filter-fredet" onchange="applyFilters()" />
-            Kun fredede bygninger
-          </label>
+          <label for="filter-fredet">Fredning</label>
+          <select id="filter-fredet" onchange="applyFilters()">
+            <option value="alle">Alle</option>
+            <option value="kun">Kun fredede</option>
+            <option value="ikke">Ekskluder fredede</option>
+          </select>
         </div>
 
         <div id="results-count"></div>

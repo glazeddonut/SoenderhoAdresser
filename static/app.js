@@ -132,7 +132,7 @@ function applyFilters() {
   const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
 
-  const kunFredet = document.getElementById('filter-fredet').checked;
+  const fredningFilter = document.getElementById('filter-fredet').value;
 
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
@@ -149,7 +149,8 @@ function applyFilters() {
       return false;
     }
 
-    if (kunFredet && !r.fredet) return false;
+    if (fredningFilter === 'kun' && !r.fredet) return false;
+    if (fredningFilter === 'ikke' && r.fredet) return false;
 
     return true;
   });
