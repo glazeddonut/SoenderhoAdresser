@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sønderho Adresser</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar">
+      <div id="header">
+        <h1>Sønderho Adresser</h1>
+      </div>
+
+      <div id="controls">
+        <div class="control-group">
+          <p class="hint">Rediger polygonen på kortet og klik <strong>Søg</strong>.</p>
+          <button id="search-btn" onclick="search()">Søg i polygon</button>
+          <div id="status"></div>
+        </div>
+
+        <div class="control-group">
+          <label for="filter-type">Boligtype</label>
+          <select id="filter-type" onchange="applyFilters()">
+            <option value="alle">Alle</option>
+            <option value="helårshus">Helårshuse</option>
+            <option value="fritidshus">Fritidshuse</option>
+            <option value="andet">Andet</option>
+          </select>
+        </div>
+
+        <div class="control-group inline-group">
+          <div>
+            <label for="filter-min">Min. boligareal (m²)</label>
+            <input type="number" id="filter-min" placeholder="0" min="0" oninput="applyFilters()" />
+          </div>
+          <div>
+            <label for="filter-max">Maks. boligareal (m²)</label>
+            <input type="number" id="filter-max" placeholder="∞" min="0" oninput="applyFilters()" />
+          </div>
+        </div>
+
+        <div id="results-count"></div>
+      </div>
+
+      <div id="table-container">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th data-col="adresse" onclick="sortBy('adresse')">Adresse <span class="sort-icon"></span></th>
+              <th data-col="type" onclick="sortBy('type')">Type <span class="sort-icon"></span></th>
+              <th data-col="boligareal" onclick="sortBy('boligareal')">Boligareal <span class="sort-icon"></span></th>
+              <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget <span class="sort-icon"></span></th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+        <div id="empty-state">Søg for at se adresser</div>
+      </div>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
