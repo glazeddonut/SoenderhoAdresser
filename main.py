@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from api.bbr import fetch_buildings
 from api.dawa import fetch_addresses_in_polygon
+from api.fbb import fetch_listed_buildings
 
 load_dotenv()
 
@@ -54,13 +55,14 @@ def primary_building(buildings: list[dict]) -> dict:
     return max(candidates, key=lambda b: b.get("byg038SamletBygningsareal") or 0)
 
 
-def extract_building_data(building: dict) -> tuple[str | None, int | None, int | None, int | None]:
-    """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar)."""
+def extract_building_data(building: dict) -> tuple[str | None, int | None, int | None, int | None, str | None]:
+    """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar, id_lokalId)."""
     code = str(building.get("byg021BygningensAnvendelse") or "") or None
     boligareal = building.get("byg039BygningensSamledeBoligAreal")
     bebygget = building.get("byg041BebyggetAreal")
     aar = building.get("byg026Opførelsesår")
-    return code, boligareal, bebygget, aar
+    id_lokal = building.get("id_lokalId")
+    return code, boligareal, bebygget, aar, id_lokal
 
 
 @app.get("/api/config")
@@ -81,10 +83,21 @@ async def search(request: SearchRequest):
     df_pass = os.getenv("DATAFORDELER_PASSWORD", "")
     bbr_enabled = bool(df_user and df_pass)
 
+    async def safe_fetch_listed(client: httpx.AsyncClient, polygon: list) -> set:
+        try:
+            return await fetch_listed_buildings(client, polygon)
+        except Exception as exc:
+            logger.warning("FBB fejl: %s", exc)
+            return set()
+
     async with httpx.AsyncClient(timeout=60.0) as client:
-        logger.info("Henter adresser fra DAWA...")
-        addresses = await fetch_addresses_in_polygon(client, request.polygon)
-        logger.info("Fandt %d adresser%s", len(addresses),
+        logger.info("Henter adresser fra DAWA og fredningsdata fra FBB...")
+        addresses, listed_buildings = await asyncio.gather(
+            fetch_addresses_in_polygon(client, request.polygon),
+            safe_fetch_listed(client, request.polygon),
+        )
+        logger.info("Fandt %d adresser, %d fredede bygninger%s",
+                    len(addresses), len(listed_buildings),
                     " — beriger med BBR-data..." if bbr_enabled else " (ingen BBR-credentials)")
 
         semaphore = asyncio.Semaphore(20)
@@ -101,7 +114,7 @@ async def search(request: SearchRequest):
                     except Exception as exc:
                         logger.debug("BBR fejl for %s: %s", addr["adgangsadresseid"], exc)
 
-            code, boligareal, bebygget, aar = extract_building_data(building)
+            code, boligareal, bebygget, aar, id_lokal = extract_building_data(building)
             return {
                 "id": addr["id"],
                 "adresse": addr.get("betegnelse", ""),
@@ -114,6 +127,7 @@ async def search(request: SearchRequest):
                 "boligareal": boligareal,
                 "bebygget_areal": bebygget,
                 "opfoerelse_aar": aar,
+                "fredet": bool(id_lokal and id_lokal in listed_buildings),
             }
 
         results = list(await asyncio.gather(*[enrich(a) for a in addresses]))

@@ -65,6 +65,13 @@
           </div>
         </div>
 
+        <div class="control-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="filter-fredet" onchange="applyFilters()" />
+            Kun fredede bygninger
+          </label>
+        </div>
+
         <div id="results-count"></div>
       </div>
 
@@ -77,6 +84,7 @@
               <th data-col="boligareal" onclick="sortBy('boligareal')">Samlet boligareal <span class="sort-icon"></span></th>
               <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget areal <span class="sort-icon"></span></th>
               <th data-col="opfoerelse_aar" onclick="sortBy('opfoerelse_aar')">Byggeår <span class="sort-icon"></span></th>
+              <th data-col="fredet" onclick="sortBy('fredet')">Fredet <span class="sort-icon"></span></th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>

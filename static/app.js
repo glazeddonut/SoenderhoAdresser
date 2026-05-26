@@ -132,6 +132,8 @@ function applyFilters() {
   const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
 
+  const kunFredet = document.getElementById('filter-fredet').checked;
+
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
 
@@ -146,6 +148,9 @@ function applyFilters() {
     } else if (minAar > 0 || maxAar < 9999) {
       return false;
     }
+
+    if (kunFredet && !r.fredet) return false;
+
     return true;
   });
 
@@ -171,6 +176,7 @@ function applySort() {
     let bv = b[sortCol];
     if (av == null) av = sortAsc ? Infinity : -Infinity;
     if (bv == null) bv = sortAsc ? Infinity : -Infinity;
+    if (typeof av === 'boolean') return sortAsc ? (av ? -1 : 1) : (av ? 1 : -1);
     if (typeof av === 'string') return sortAsc ? av.localeCompare(bv, 'da') : bv.localeCompare(av, 'da');
     return sortAsc ? av - bv : bv - av;
   });
@@ -195,6 +201,7 @@ function updateMap() {
       <div class="popup-inner">
         <strong>${r.adresse}</strong>
         <span class="popup-badge" style="background:${color}">${TYPE_LABELS[r.type] || r.type}</span>
+        ${r.fredet ? '<span class="popup-badge popup-badge-fredet">Fredet</span>' : ''}
         ${r.boligareal != null ? `<div>Boligareal: <b>${r.boligareal} m²</b></div>` : ''}
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
@@ -256,6 +263,7 @@ function updateTable() {
         <td>${r.boligareal != null ? r.boligareal + ' m²' : '—'}</td>
         <td>${r.bebygget_areal != null ? r.bebygget_areal + ' m²' : '—'}</td>
         <td>${r.opfoerelse_aar ?? '—'}</td>
+        <td>${r.fredet ? '<span class="fredet-badge">Ja</span>' : '—'}</td>
       </tr>
     `;
   }).join('');
