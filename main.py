@@ -57,7 +57,7 @@ def primary_building(buildings: list[dict]) -> dict:
 def extract_building_data(building: dict) -> tuple[str | None, int | None, int | None, int | None]:
     """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar)."""
     code = str(building.get("byg021BygningensAnvendelse") or "") or None
-    boligareal = building.get("byg038SamletBygningsareal")
+    boligareal = building.get("byg039BygningensSamledeBoligAreal")
     bebygget = building.get("byg041BebyggetAreal")
     aar = building.get("byg026Opførelsesår")
     return code, boligareal, bebygget, aar
