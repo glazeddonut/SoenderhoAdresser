@@ -43,6 +43,17 @@
           </div>
         </div>
 
+        <div class="control-group inline-group">
+          <div>
+            <label for="filter-aar-min">Bygget fra (år)</label>
+            <input type="number" id="filter-aar-min" placeholder="f.eks. 1850" min="1000" max="2100" oninput="applyFilters()" />
+          </div>
+          <div>
+            <label for="filter-aar-max">Bygget til (år)</label>
+            <input type="number" id="filter-aar-max" placeholder="f.eks. 1910" min="1000" max="2100" oninput="applyFilters()" />
+          </div>
+        </div>
+
         <div id="results-count"></div>
       </div>
 
@@ -54,6 +65,7 @@
               <th data-col="type" onclick="sortBy('type')">Type <span class="sort-icon"></span></th>
               <th data-col="boligareal" onclick="sortBy('boligareal')">Boligareal <span class="sort-icon"></span></th>
               <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget <span class="sort-icon"></span></th>
+              <th data-col="opfoerelse_aar" onclick="sortBy('opfoerelse_aar')">Byggeår <span class="sort-icon"></span></th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>

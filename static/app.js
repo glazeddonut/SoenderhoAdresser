@@ -128,10 +128,18 @@ function applyFilters() {
   const minVal = parseFloat(document.getElementById('filter-min').value) || 0;
   const maxVal = parseFloat(document.getElementById('filter-max').value) || Infinity;
 
+  const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
+  const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
+
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
     const areal = r.boligareal ?? 0;
     if (areal < minVal || areal > maxVal) return false;
+    if (r.opfoerelse_aar != null) {
+      if (r.opfoerelse_aar < minAar || r.opfoerelse_aar > maxAar) return false;
+    } else if (minAar > 0 || maxAar < 9999) {
+      return false;
+    }
     return true;
   });
 
@@ -241,6 +249,7 @@ function updateTable() {
         <td><span class="type-dot" style="background:${color}"></span>${TYPE_LABELS[r.type] || r.type}</td>
         <td>${r.boligareal != null ? r.boligareal + ' m²' : '—'}</td>
         <td>${r.bebygget_areal != null ? r.bebygget_areal + ' m²' : '—'}</td>
+        <td>${r.opfoerelse_aar ?? '—'}</td>
       </tr>
     `;
   }).join('');
