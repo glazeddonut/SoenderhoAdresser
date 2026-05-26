@@ -125,16 +125,22 @@ async function search() {
 
 function applyFilters() {
   const type = document.getElementById('filter-type').value;
-  const minVal = parseFloat(document.getElementById('filter-min').value) || 0;
-  const maxVal = parseFloat(document.getElementById('filter-max').value) || Infinity;
-
+  const minBoli = parseFloat(document.getElementById('filter-min').value) || 0;
+  const maxBoli = parseFloat(document.getElementById('filter-max').value) || Infinity;
+  const minBeb = parseFloat(document.getElementById('filter-beb-min').value) || 0;
+  const maxBeb = parseFloat(document.getElementById('filter-beb-max').value) || Infinity;
   const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
 
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
-    const areal = r.boligareal ?? 0;
-    if (areal < minVal || areal > maxVal) return false;
+
+    const boli = r.boligareal ?? 0;
+    if (boli < minBoli || boli > maxBoli) return false;
+
+    const beb = r.bebygget_areal ?? 0;
+    if (beb < minBeb || beb > maxBeb) return false;
+
     if (r.opfoerelse_aar != null) {
       if (r.opfoerelse_aar < minAar || r.opfoerelse_aar > maxAar) return false;
     } else if (minAar > 0 || maxAar < 9999) {

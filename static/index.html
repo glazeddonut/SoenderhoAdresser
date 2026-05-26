@@ -34,12 +34,23 @@
 
         <div class="control-group inline-group">
           <div>
-            <label for="filter-min">Min. boligareal (m²)</label>
+            <label for="filter-min">Min. samlet boligareal (m²)</label>
             <input type="number" id="filter-min" placeholder="0" min="0" oninput="applyFilters()" />
           </div>
           <div>
-            <label for="filter-max">Maks. boligareal (m²)</label>
+            <label for="filter-max">Maks. samlet boligareal (m²)</label>
             <input type="number" id="filter-max" placeholder="∞" min="0" oninput="applyFilters()" />
+          </div>
+        </div>
+
+        <div class="control-group inline-group">
+          <div>
+            <label for="filter-beb-min">Min. bebygget areal (m²)</label>
+            <input type="number" id="filter-beb-min" placeholder="0" min="0" oninput="applyFilters()" />
+          </div>
+          <div>
+            <label for="filter-beb-max">Maks. bebygget areal (m²)</label>
+            <input type="number" id="filter-beb-max" placeholder="∞" min="0" oninput="applyFilters()" />
           </div>
         </div>
 
@@ -63,8 +74,8 @@
             <tr>
               <th data-col="adresse" onclick="sortBy('adresse')">Adresse <span class="sort-icon"></span></th>
               <th data-col="type" onclick="sortBy('type')">Type <span class="sort-icon"></span></th>
-              <th data-col="boligareal" onclick="sortBy('boligareal')">Boligareal <span class="sort-icon"></span></th>
-              <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget <span class="sort-icon"></span></th>
+              <th data-col="boligareal" onclick="sortBy('boligareal')">Samlet boligareal <span class="sort-icon"></span></th>
+              <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget areal <span class="sort-icon"></span></th>
               <th data-col="opfoerelse_aar" onclick="sortBy('opfoerelse_aar')">Byggeår <span class="sort-icon"></span></th>
             </tr>
           </thead>
