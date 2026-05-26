@@ -77,9 +77,8 @@ def extract_building_data(building: dict) -> tuple[str | None, int | None, int |
 
 @app.get("/api/config")
 async def get_config():
-    """Returns whether BBR credentials are configured."""
-    has_credentials = bool(os.getenv("DATAFORDELER_USER") and os.getenv("DATAFORDELER_PASSWORD"))
-    return {"bbr_enabled": has_credentials}
+    """Returns whether BBR API key is configured."""
+    return {"bbr_enabled": bool(os.getenv("DATAFORDELER_API_KEY"))}
 
 
 @app.post("/api/search")
@@ -89,15 +88,14 @@ async def search(request: SearchRequest):
         logger.info("Cache hit (%s)", cache_key[:8])
         return _cache[cache_key]
 
-    df_user = os.getenv("DATAFORDELER_USER", "")
-    df_pass = os.getenv("DATAFORDELER_PASSWORD", "")
-    bbr_enabled = bool(df_user and df_pass)
+    api_key = os.getenv("DATAFORDELER_API_KEY", "")
+    bbr_enabled = bool(api_key)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         logger.info("Henter adresser fra DAWA...")
         addresses = await fetch_addresses_in_polygon(client, request.polygon)
         logger.info("Fandt %d adresser%s", len(addresses),
-                    " — beriger med BBR-data..." if bbr_enabled else " (ingen BBR-credentials)")
+                    " — beriger med BBR-data..." if bbr_enabled else " (ingen BBR API-nøgle)")
 
         semaphore = asyncio.Semaphore(20)
 
@@ -107,7 +105,7 @@ async def search(request: SearchRequest):
                 async with semaphore:
                     try:
                         buildings = await fetch_buildings(
-                            client, addr["adgangsadresseid"], df_user, df_pass
+                            client, addr["adgangsadresseid"], api_key
                         )
                         building = primary_building(buildings)
                     except Exception as exc:

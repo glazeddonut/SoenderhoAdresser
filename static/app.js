@@ -277,10 +277,10 @@ async function checkConfig() {
       if (hint) {
         hint.innerHTML = `
           <strong style="color:#f97316">BBR-data er ikke konfigureret.</strong>
-          Opret gratis service-bruger på
-          <a href="https://datafordeler.dk" target="_blank">datafordeler.dk</a>
-          og tilføj credentials til en <code>.env</code>-fil
-          (se <code>.env.example</code>).
+          Opret konto på
+          <a href="https://admin.datafordeler.dk" target="_blank">admin.datafordeler.dk</a>,
+          opret en API-nøgle til BBR BBRPublic, og tilføj den til en
+          <code>.env</code>-fil (se <code>.env.example</code>).
           Adresser vises uden bygningstype og areal.
         `;
       }
