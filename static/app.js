@@ -37,6 +37,7 @@ const TAG_LABELS = {
   '10': 'Tagpap',
   '11': 'Natursten',
   '12': 'Grønt tag',
+  '20': 'Beton',
   '80': 'Andet',
   '90': 'Ukendt',
 };
