@@ -291,6 +291,18 @@ tbody tr.active {
   color: #475569;
 }
 
+.boligsiden-link {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6366f1;
+  text-decoration: none;
+}
+
+.boligsiden-link:hover {
+  text-decoration: underline;
+}
+
 .popup-badge-fredet {
   background: #7c3aed;
   margin-left: 4px;

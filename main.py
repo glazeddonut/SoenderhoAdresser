@@ -120,6 +120,8 @@ async def search(request: SearchRequest):
                 "adresse": addr.get("betegnelse", ""),
                 "vejnavn": addr.get("vejnavn", ""),
                 "husnr": addr.get("husnr", ""),
+                "postnr": addr.get("postnr", ""),
+                "postnrnavn": addr.get("postnrnavn", ""),
                 "x": addr.get("x"),
                 "y": addr.get("y"),
                 "type": classify(code) if code else "ukendt",

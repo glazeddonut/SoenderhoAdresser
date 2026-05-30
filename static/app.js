@@ -8,6 +8,22 @@ const DEFAULT_POLYGON = [
   [8.441, 55.340],
 ];
 
+function toBoligsidenSlug(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/æ/g, 'ae').replace(/ø/g, 'oe').replace(/å/g, 'aa')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function boligsidenUrl(r) {
+  const slug = [r.vejnavn, r.husnr, r.postnr, r.postnrnavn]
+    .map(toBoligsidenSlug).join('-');
+  return `https://www.boligsiden.dk/adresse/${slug}`;
+}
+
 const TYPE_COLORS = {
   'helårshus': '#3b82f6',
   'fritidshus': '#f97316',
@@ -206,6 +222,7 @@ function updateMap() {
         ${r.boligareal != null ? `<div>Boligareal: <b>${r.boligareal} m²</b></div>` : ''}
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
+        <div style="margin-top:8px"><a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Se på Boligsiden ↗</a></div>
       </div>
     `);
 
