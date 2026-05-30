@@ -133,7 +133,6 @@ async function search() {
     allResults = await res.json();
     setStatus('', '');
     applyFilters();
-    autocheckBoligsiden();
   } catch (e) {
     setStatus(`Fejl: ${e.message}`, 'error');
   } finally {
@@ -180,6 +179,7 @@ function applyFilters() {
   if (sortCol) applySort();
   updateMap();
   updateTable();
+  autocheckBoligsiden();
 }
 
 function sortBy(col) {
@@ -336,17 +336,26 @@ function updateLegendForSale(show) {
   }
 }
 
-async function autocheckBoligsiden() {
-  if (allResults.length === 0 || allResults.length > 50) return;
+let _boligsidenChecking = false;
 
+async function autocheckBoligsiden() {
+  if (_boligsidenChecking) return;
+  if (filteredResults.length === 0 || filteredResults.length > 50) return;
+
+  // Only check addresses not yet looked up
+  const unchecked = filteredResults.filter((r) => r.til_salg === undefined);
+  if (unchecked.length === 0) return;
+
+  _boligsidenChecking = true;
   document.getElementById('filter-tilsalg-group').style.display = 'block';
-  setStatus(`Tjekker boligsiden for ${allResults.length} adresser…`, 'loading');
 
   const CONCURRENT = 5;
-  const queue = [...allResults];
+  const queue = [...unchecked];
   let active = 0;
   let done = 0;
-  const total = allResults.length;
+  const total = unchecked.length;
+
+  setStatus(`Tjekker Boligsiden… 0/${total}`, 'loading');
 
   await new Promise((resolve) => {
     function next() {
@@ -380,9 +389,9 @@ async function autocheckBoligsiden() {
     next();
   });
 
-  const forSaleCount = allResults.filter((r) => r.til_salg).length;
+  _boligsidenChecking = false;
   setStatus('', '');
-  updateLegendForSale(forSaleCount > 0);
+  updateLegendForSale(allResults.some((r) => r.til_salg === true));
   updateMap();
   updateTable();
 }
