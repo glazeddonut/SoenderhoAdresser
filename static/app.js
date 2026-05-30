@@ -224,7 +224,10 @@ function updateMap() {
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
           <a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Boligsiden ↗</a>
-          <button class="boligsiden-check-btn" onclick="checkBoligsiden(this,'${encodeURIComponent(r.vejnavn)}','${encodeURIComponent(r.husnr)}','${encodeURIComponent(r.postnr)}','${encodeURIComponent(r.postnrnavn)}')">Tjek om til salg</button>
+          <button class="boligsiden-check-btn"
+            data-vejnavn="${r.vejnavn}" data-husnr="${r.husnr}"
+            data-postnr="${r.postnr}" data-postnrnavn="${r.postnrnavn}"
+            onclick="checkBoligsiden(this)">Tjek om til salg</button>
         </div>
         <div class="boligsiden-result" style="display:none;margin-top:4px;font-size:12px"></div>
       </div>
@@ -307,7 +310,8 @@ function zoomTo(id) {
   if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-async function checkBoligsiden(btn, vejnavn, husnr, postnr, postnrnavn) {
+async function checkBoligsiden(btn) {
+  const { vejnavn, husnr, postnr, postnrnavn } = btn.dataset;
   btn.disabled = true;
   btn.textContent = 'Henter…';
   const resultEl = btn.closest('.popup-inner').querySelector('.boligsiden-result');
