@@ -1,4 +1,6 @@
+import json
 import re
+
 from curl_cffi import requests as cffi_requests
 
 
@@ -17,18 +19,46 @@ def build_url(vejnavn: str, husnr: str, postnr: str, postnrnavn: str) -> str:
 
 def check_for_sale(url: str) -> dict:
     """
-    Fetch a boligsiden.dk address page using a browser TLS fingerprint
-    (curl_cffi / Chrome impersonation) to bypass Cloudflare.
-    Returns {"til_salg": bool, "url": str} or {"error": str}.
+    Fetch a boligsiden.dk address page using Chrome TLS-fingerprint impersonation
+    (curl_cffi) to bypass Cloudflare. Detects active for-sale status via page
+    title and extracts asking price from JSON-LD schema.org Product/Offer data.
     """
     try:
         resp = cffi_requests.get(url, impersonate="chrome", timeout=15)
         if resp.status_code != 200:
             return {"error": f"HTTP {resp.status_code}", "url": url}
 
-        title_m = re.search(r"<title>(.*?)</title>", resp.text)
+        text = resp.text
+
+        # Active listing: title starts with "Til salg:"
+        title_m = re.search(r"<title>(.*?)</title>", text)
         title = title_m.group(1) if title_m else ""
         til_salg = title.lower().startswith("til salg")
-        return {"til_salg": til_salg, "titel": title, "url": url}
+
+        # Extract asking price from schema.org Product → Offer JSON-LD
+        pris: int | None = None
+        if til_salg:
+            for raw in re.findall(
+                r'<script type="application/ld\+json">(.*?)</script>', text, re.DOTALL
+            ):
+                try:
+                    data = json.loads(raw)
+                    items = data if isinstance(data, list) else [data]
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        if item.get("@type") == "Product":
+                            offers = item.get("offers", {})
+                            if isinstance(offers, dict):
+                                p = offers.get("price")
+                                if p is not None:
+                                    pris = int(p)
+                                    break
+                    if pris is not None:
+                        break
+                except Exception:
+                    pass
+
+        return {"til_salg": til_salg, "pris": pris, "url": url}
     except Exception as exc:
         return {"error": str(exc), "url": url}

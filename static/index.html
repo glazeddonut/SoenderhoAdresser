@@ -65,6 +65,15 @@
           </div>
         </div>
 
+        <div class="control-group" id="filter-tilsalg-group" style="display:none">
+          <label for="filter-tilsalg">Til salg</label>
+          <select id="filter-tilsalg" onchange="applyFilters()">
+            <option value="alle">Alle</option>
+            <option value="kun">Kun til salg</option>
+            <option value="ikke">Ekskluder til salg</option>
+          </select>
+        </div>
+
         <div class="control-group">
           <label for="filter-fredet">Fredning</label>
           <select id="filter-fredet" onchange="applyFilters()">
@@ -87,6 +96,7 @@
               <th data-col="bebygget_areal" onclick="sortBy('bebygget_areal')">Bebygget areal <span class="sort-icon"></span></th>
               <th data-col="opfoerelse_aar" onclick="sortBy('opfoerelse_aar')">Byggeår <span class="sort-icon"></span></th>
               <th data-col="fredet" onclick="sortBy('fredet')">Fredet <span class="sort-icon"></span></th>
+              <th data-col="pris" onclick="sortBy('pris')">Udbudspris <span class="sort-icon"></span></th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>

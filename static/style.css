@@ -329,6 +329,11 @@ tbody tr.active {
   margin-left: 4px;
 }
 
+.popup-badge-forsale {
+  background: #16a34a;
+  margin-left: 4px;
+}
+
 .fredet-badge {
   display: inline-block;
   padding: 1px 7px;
@@ -337,6 +342,23 @@ tbody tr.active {
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+}
+
+.forsale-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.legend-dot-forsale {
+  background: transparent;
+  border: 2.5px solid #22c55e;
+  width: 10px;
+  height: 10px;
 }
 
 .checkbox-label {

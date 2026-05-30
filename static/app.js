@@ -94,6 +94,7 @@ function initMap() {
     return div;
   };
   legend.addTo(map);
+  updateLegendForSale(false);
 
   // Default Sønderho polygon
   const latlngs = DEFAULT_POLYGON.map(([lon, lat]) => [lat, lon]);
@@ -132,6 +133,7 @@ async function search() {
     allResults = await res.json();
     setStatus('', '');
     applyFilters();
+    autocheckBoligsiden();
   } catch (e) {
     setStatus(`Fejl: ${e.message}`, 'error');
   } finally {
@@ -149,6 +151,7 @@ function applyFilters() {
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
 
   const fredningFilter = document.getElementById('filter-fredet').value;
+  const tilsalgFilter = document.getElementById('filter-tilsalg').value;
 
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
@@ -167,6 +170,9 @@ function applyFilters() {
 
     if (fredningFilter === 'kun' && !r.fredet) return false;
     if (fredningFilter === 'ikke' && r.fredet) return false;
+
+    if (tilsalgFilter === 'kun' && r.til_salg !== true) return false;
+    if (tilsalgFilter === 'ikke' && r.til_salg === true) return false;
 
     return true;
   });
@@ -206,11 +212,12 @@ function updateMap() {
     if (r.x == null || r.y == null) return;
 
     const color = TYPE_COLORS[r.type] || TYPE_COLORS.andet;
+    const forSale = r.til_salg === true;
     const marker = L.circleMarker([r.y, r.x], {
-      radius: 6,
+      radius: forSale ? 9 : 6,
       fillColor: color,
-      color: '#fff',
-      weight: 1.5,
+      color: forSale ? '#22c55e' : '#fff',
+      weight: forSale ? 3 : 1.5,
       fillOpacity: 0.85,
     });
 
@@ -219,6 +226,7 @@ function updateMap() {
         <strong>${r.adresse}</strong>
         <span class="popup-badge" style="background:${color}">${TYPE_LABELS[r.type] || r.type}</span>
         ${r.fredet ? '<span class="popup-badge popup-badge-fredet">Fredet</span>' : ''}
+        ${r.til_salg === true ? `<span class="popup-badge popup-badge-forsale">Til salg${r.pris ? ' – ' + r.pris.toLocaleString('da-DK') + ' kr.' : ''}</span>` : ''}
         ${r.boligareal != null ? `<div>Boligareal: <b>${r.boligareal} m²</b></div>` : ''}
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
@@ -289,6 +297,9 @@ function updateTable() {
         <td>${r.bebygget_areal != null ? r.bebygget_areal + ' m²' : '—'}</td>
         <td>${r.opfoerelse_aar ?? '—'}</td>
         <td>${r.fredet ? '<span class="fredet-badge">Ja</span>' : '—'}</td>
+        <td>${r.til_salg === true
+          ? `<span class="forsale-badge">${r.pris ? r.pris.toLocaleString('da-DK') + ' kr.' : 'Ja'}</span>`
+          : r.til_salg === false ? '—' : ''}</td>
       </tr>
     `;
   }).join('');
@@ -308,6 +319,72 @@ function zoomTo(id) {
   // Scroll row into view
   const row = document.querySelector(`#results-body tr[data-id="${id}"]`);
   if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function updateLegendForSale(show) {
+  const el = document.querySelector('.legend-forsale-row');
+  if (show && !el) {
+    const legend = document.querySelector('.map-legend');
+    if (legend) {
+      const row = document.createElement('div');
+      row.className = 'legend-forsale-row';
+      row.innerHTML = '<span class="legend-dot legend-dot-forsale"></span>Til salg';
+      legend.appendChild(row);
+    }
+  } else if (!show && el) {
+    el.remove();
+  }
+}
+
+async function autocheckBoligsiden() {
+  if (allResults.length === 0 || allResults.length > 50) return;
+
+  document.getElementById('filter-tilsalg-group').style.display = 'block';
+  setStatus(`Tjekker boligsiden for ${allResults.length} adresser…`, 'loading');
+
+  const CONCURRENT = 5;
+  const queue = [...allResults];
+  let active = 0;
+  let done = 0;
+  const total = allResults.length;
+
+  await new Promise((resolve) => {
+    function next() {
+      while (active < CONCURRENT && queue.length > 0) {
+        const r = queue.shift();
+        active++;
+        const params = new URLSearchParams({
+          vejnavn: r.vejnavn, husnr: r.husnr,
+          postnr: r.postnr, postnrnavn: r.postnrnavn,
+        });
+        fetch(`/api/boligsiden?${params}`)
+          .then((res) => res.json())
+          .then((data) => {
+            r.til_salg = data.til_salg === true;
+            r.pris = data.pris ?? null;
+          })
+          .catch(() => { r.til_salg = false; r.pris = null; })
+          .finally(() => {
+            done++;
+            active--;
+            setStatus(`Tjekker Boligsiden… ${done}/${total}`, 'loading');
+            if (done % 5 === 0 || done === total) updateMap();
+            if (queue.length > 0) {
+              next();
+            } else if (active === 0) {
+              resolve();
+            }
+          });
+      }
+    }
+    next();
+  });
+
+  const forSaleCount = allResults.filter((r) => r.til_salg).length;
+  setStatus('', '');
+  updateLegendForSale(forSaleCount > 0);
+  updateMap();
+  updateTable();
 }
 
 async function checkBoligsiden(btn) {
