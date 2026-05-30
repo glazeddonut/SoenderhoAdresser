@@ -222,7 +222,11 @@ function updateMap() {
         ${r.boligareal != null ? `<div>Boligareal: <b>${r.boligareal} m²</b></div>` : ''}
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
-        <div style="margin-top:8px"><a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Se på Boligsiden ↗</a></div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Boligsiden ↗</a>
+          <button class="boligsiden-check-btn" onclick="checkBoligsiden(this,'${encodeURIComponent(r.vejnavn)}','${encodeURIComponent(r.husnr)}','${encodeURIComponent(r.postnr)}','${encodeURIComponent(r.postnrnavn)}')">Tjek om til salg</button>
+        </div>
+        <div class="boligsiden-result" style="display:none;margin-top:4px;font-size:12px"></div>
       </div>
     `);
 
@@ -301,6 +305,34 @@ function zoomTo(id) {
   // Scroll row into view
   const row = document.querySelector(`#results-body tr[data-id="${id}"]`);
   if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+async function checkBoligsiden(btn, vejnavn, husnr, postnr, postnrnavn) {
+  btn.disabled = true;
+  btn.textContent = 'Henter…';
+  const resultEl = btn.closest('.popup-inner').querySelector('.boligsiden-result');
+  resultEl.style.display = 'none';
+
+  try {
+    const params = new URLSearchParams({ vejnavn, husnr, postnr, postnrnavn });
+    const res = await fetch(`/api/boligsiden?${params}`);
+    const data = await res.json();
+
+    resultEl.style.display = 'block';
+    if (data.error) {
+      resultEl.innerHTML = `<span style="color:#ef4444">Fejl: ${data.error}</span>`;
+    } else if (data.til_salg) {
+      resultEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✓ Til salg</span>`;
+    } else {
+      resultEl.innerHTML = `<span style="color:#64748b">Ikke til salg</span>`;
+    }
+  } catch (e) {
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `<span style="color:#ef4444">Netværksfejl</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Tjek igen';
+  }
 }
 
 function setStatus(msg, type) {

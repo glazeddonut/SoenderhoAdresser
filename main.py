@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api.bbr import fetch_buildings
+from api.boligsiden import build_url, check_for_sale
 from api.dawa import fetch_addresses_in_polygon
 from api.fbb import fetch_listed_buildings
 
@@ -137,6 +138,13 @@ async def search(request: SearchRequest):
     logger.info("Færdig: %d resultater cachet", len(results))
     _cache[cache_key] = results
     return results
+
+
+@app.get("/api/boligsiden")
+async def boligsiden_check(vejnavn: str, husnr: str, postnr: str, postnrnavn: str):
+    """Check if an address is currently for sale on boligsiden.dk."""
+    url = build_url(vejnavn, husnr, postnr, postnrnavn)
+    return await asyncio.get_event_loop().run_in_executor(None, check_for_sale, url)
 
 
 @app.get("/")

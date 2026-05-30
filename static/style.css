@@ -303,6 +303,27 @@ tbody tr.active {
   text-decoration: underline;
 }
 
+.boligsiden-check-btn {
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #1e293b;
+  transition: background 0.15s;
+}
+
+.boligsiden-check-btn:hover {
+  background: #e2e8f0;
+}
+
+.boligsiden-check-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .popup-badge-fredet {
   background: #7c3aed;
   margin-left: 4px;

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "soenderho",
-      "runtimeExecutable": "uvicorn",
-      "runtimeArgs": ["main:app", "--port", "8000"],
+      "runtimeExecutable": ".venv/bin/python3",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--port", "8000"],
       "port": 8000
     }
   ]
