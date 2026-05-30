@@ -24,6 +24,23 @@ function boligsidenUrl(r) {
   return `https://www.boligsiden.dk/adresse/${slug}`;
 }
 
+const TAG_LABELS = {
+  '1': 'Fibercement (bølgeeternit)',
+  '2': 'Cementsten',
+  '3': 'Tegl',
+  '4': 'Naturskifer',
+  '5': 'Tagpap el. tagfolie',
+  '6': 'Metal',
+  '7': 'Stråtag',
+  '8': 'Fibercement (plane plader)',
+  '9': 'Glas/plast',
+  '10': 'Tagpap',
+  '11': 'Natursten',
+  '12': 'Grønt tag',
+  '80': 'Andet',
+  '90': 'Ukendt',
+};
+
 const TYPE_COLORS = {
   'helårshus': '#3b82f6',
   'fritidshus': '#f97316',
@@ -132,6 +149,7 @@ async function search() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     allResults = await res.json();
     setStatus('', '');
+    populateTagFilter();
     applyFilters();
   } catch (e) {
     setStatus(`Fejl: ${e.message}`, 'error');
@@ -149,11 +167,13 @@ function applyFilters() {
   const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
 
+  const tagFilter = document.getElementById('filter-tag').value;
   const fredningFilter = document.getElementById('filter-fredet').value;
   const tilsalgFilter = document.getElementById('filter-tilsalg').value;
 
   filteredResults = allResults.filter((r) => {
     if (type !== 'alle' && r.type !== type) return false;
+    if (tagFilter !== 'alle' && r.tagmateriale !== tagFilter) return false;
 
     const boli = r.boligareal ?? 0;
     if (boli < minBoli || boli > maxBoli) return false;
@@ -230,6 +250,7 @@ function updateMap() {
         ${r.boligareal != null ? `<div>Boligareal: <b>${r.boligareal} m²</b></div>` : ''}
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
+        ${r.tagmateriale ? `<div>Tag: <b>${TAG_LABELS[r.tagmateriale] || r.tagmateriale}</b></div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
           <a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Boligsiden ↗</a>
           <button class="boligsiden-check-btn"
@@ -423,6 +444,15 @@ async function checkBoligsiden(btn) {
     btn.disabled = false;
     btn.textContent = 'Tjek igen';
   }
+}
+
+function populateTagFilter() {
+  const sel = document.getElementById('filter-tag');
+  const current = sel.value;
+  const codes = [...new Set(allResults.map((r) => r.tagmateriale).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="alle">Alle</option>' +
+    codes.map((c) => `<option value="${c}">${TAG_LABELS[c] || c}</option>`).join('');
+  if (codes.includes(current)) sel.value = current;
 }
 
 function setStatus(msg, type) {

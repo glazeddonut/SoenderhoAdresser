@@ -56,14 +56,15 @@ def primary_building(buildings: list[dict]) -> dict:
     return max(candidates, key=lambda b: b.get("byg038SamletBygningsareal") or 0)
 
 
-def extract_building_data(building: dict) -> tuple[str | None, int | None, int | None, int | None, str | None]:
-    """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar, id_lokalId)."""
+def extract_building_data(building: dict) -> tuple:
+    """Return (anvend_kode, boligareal, bebygget_areal, opfoerelse_aar, id_lokalId, tagmateriale)."""
     code = str(building.get("byg021BygningensAnvendelse") or "") or None
     boligareal = building.get("byg039BygningensSamledeBoligAreal")
     bebygget = building.get("byg041BebyggetAreal")
     aar = building.get("byg026Opførelsesår")
     id_lokal = building.get("id_lokalId")
-    return code, boligareal, bebygget, aar, id_lokal
+    tagmateriale = str(building.get("byg033Tagdækningsmateriale") or "") or None
+    return code, boligareal, bebygget, aar, id_lokal, tagmateriale
 
 
 @app.get("/api/config")
@@ -115,7 +116,7 @@ async def search(request: SearchRequest):
                     except Exception as exc:
                         logger.debug("BBR fejl for %s: %s", addr["adgangsadresseid"], exc)
 
-            code, boligareal, bebygget, aar, id_lokal = extract_building_data(building)
+            code, boligareal, bebygget, aar, id_lokal, tagmateriale = extract_building_data(building)
             return {
                 "id": addr["id"],
                 "adresse": addr.get("betegnelse", ""),
@@ -130,6 +131,7 @@ async def search(request: SearchRequest):
                 "boligareal": boligareal,
                 "bebygget_areal": bebygget,
                 "opfoerelse_aar": aar,
+                "tagmateriale": tagmateriale,
                 "fredet": bool(id_lokal and id_lokal in listed_buildings),
             }
 
