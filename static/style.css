@@ -192,6 +192,12 @@ input:focus {
   color: #4f46e5;
 }
 
+.pris-kilde {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 .popup-estimat {
   margin-top: 6px;
   font-size: 13px;

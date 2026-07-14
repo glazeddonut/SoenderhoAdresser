@@ -2,8 +2,10 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
 import pathlib
+from datetime import datetime
 
 import httpx
 from dotenv import load_dotenv
@@ -17,6 +19,7 @@ from api.bbr import fetch_buildings
 from api.boligsiden import build_url, check_for_sale, fetch_registrations
 from api.dawa import fetch_addresses_in_polygon
 from api.fbb import fetch_listed_buildings
+from api.markedsindeks import fetch_market_index, index_at, index_cagr, index_now
 from api.prisindeks import build_model, estimate
 from api.water import WaterIndex, fetch_water_bodies
 
@@ -58,7 +61,41 @@ def _save_salg_cache() -> None:
         logger.warning("Kunne ikke gemme salgshistorik-cache: %s", exc)
 
 
+# Markedsprisindeks fra Danmarks Statistik (Sydjylland, pr. type) — caches til disk og
+# genhentes hvis ældre end 30 dage. Bruges til at fremskrive historiske salg til i dag.
+_INDEX_CACHE_FILE = _DATA_DIR / "markedsindeks.json"
+_market_index: dict = {"fetched_at": 0.0, "series": {}}
+
+
+def _load_market_index() -> None:
+    global _market_index
+    try:
+        _market_index = json.loads(_INDEX_CACHE_FILE.read_text())
+    except Exception:
+        _market_index = {"fetched_at": 0.0, "series": {}}
+
+
+async def _ensure_market_index() -> dict:
+    """Returnér markedsindeks-serier; genhent fra Finans Danmark (Fanø) hvis cachen er
+    tom eller >30 dage gammel. Hentningen er synkron (curl_cffi) → køres i executor."""
+    import time
+    fresh = (time.time() - _market_index.get("fetched_at", 0)) < 30 * 86400
+    if _market_index.get("series") and fresh:
+        return _market_index["series"]
+    try:
+        series = await asyncio.get_event_loop().run_in_executor(None, fetch_market_index)
+        _market_index["series"] = series
+        _market_index["fetched_at"] = time.time()
+        _DATA_DIR.mkdir(exist_ok=True)
+        _INDEX_CACHE_FILE.write_text(json.dumps(_market_index))
+        logger.info("Hentede Fanø-markedsindeks: %s", {k: len(v) for k, v in series.items()})
+    except Exception as exc:
+        logger.warning("Kunne ikke hente markedsindeks: %s", exc)
+    return _market_index.get("series", {})
+
+
 _load_salg_cache()
+_load_market_index()
 
 
 class SearchRequest(BaseModel):
@@ -260,24 +297,46 @@ async def prisindeks(request: PrisIndeksRequest):
     ids = [a.id for a in request.addresses]
     missing = [i for i in ids if i not in _salg_cache]
 
+    async def fetch_one(client: httpx.AsyncClient, aid: str) -> None:
+        async with semaphore:
+            try:
+                data = await fetch_registrations(client, aid)
+            except Exception as exc:
+                logger.debug("Boligsiden-fejl for %s: %s", aid, exc)
+                data = None
+            _salg_cache[aid] = data or {
+                "registrations": [], "latestValuation": None, "livingArea": None
+            }
+
     if missing:
         logger.info("Henter salgshistorik for %d nye adresser...", len(missing))
         semaphore = asyncio.Semaphore(20)
-
-        async def fetch_one(client: httpx.AsyncClient, aid: str) -> None:
-            async with semaphore:
-                try:
-                    data = await fetch_registrations(client, aid)
-                except Exception as exc:
-                    logger.debug("Boligsiden-fejl for %s: %s", aid, exc)
-                    data = None
-                _salg_cache[aid] = data or {
-                    "registrations": [], "latestValuation": None, "livingArea": None
-                }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=40.0) as client:
             await asyncio.gather(*[fetch_one(client, i) for i in missing])
         _save_salg_cache()
+    series = await _ensure_market_index()
+
+    # Tidsfaktor pr. salg: fremskriv fra salgskvartalet til i dag via DST-markedsindekset
+    # (tid = ln(indeks_ved_salg / indeks_nu), 0 = i dag). Uden indeks bruges år−nu (fallback).
+    now = datetime.now()
+    now_frac = now.year + (now.month - 1) / 12
+
+    def _series_for(boligtype: str) -> dict | None:
+        # helårs/fritids har egne serier; andet/ukendt bruger enfamilie-serien som proxy.
+        return series.get(boligtype) or series.get("helårshus")
+
+    def time_feature(boligtype: str, date: str) -> float | None:
+        s = _series_for(boligtype)
+        if s:
+            v, vn = index_at(s, date), index_now(s)
+            if v and vn:
+                return math.log(v / vn)
+        y, m = int(date[:4]), int(date[5:7])
+        return (y + (m - 1) / 12) - now_frac
+
+    def growth_for(boligtype: str) -> float | None:
+        s = _series_for(boligtype)
+        return index_cagr(s) if s else None
 
     # Segmentér frie handler (type=normal) på boligtype — helårshuse og fritidshuse
     # har forskelligt prisniveau OG forskellig prisudvikling, så de får hver sin model.
@@ -288,13 +347,17 @@ async def prisindeks(request: PrisIndeksRequest):
         boligtype = type_by_id.get(i, "ukendt")
         for reg in (_salg_cache.get(i) or {}).get("registrations", []):
             if reg.get("type") == "normal" and reg.get("amount") and reg.get("area") and reg.get("date"):
-                sale = {"price": reg["amount"], "area": reg["area"], "date": reg["date"]}
+                sale = {
+                    "price": reg["amount"],
+                    "area": reg["area"],
+                    "tid": time_feature(boligtype, reg["date"]),
+                }
                 sales_by_type.setdefault(boligtype, []).append(sale)
                 all_sales.append(sale)
 
     MIN_N = 8  # kræv nok handler til en pålidelig type-model, ellers fald tilbage til "alle"
-    models = {t: build_model(s) for t, s in sales_by_type.items()}
-    models["alle"] = build_model(all_sales)
+    models = {t: build_model(s, growth_from_index=growth_for(t)) for t, s in sales_by_type.items()}
+    models["alle"] = build_model(all_sales, growth_from_index=growth_for("helårshus"))
 
     def model_for(boligtype: str) -> tuple[str, dict]:
         m = models.get(boligtype)
@@ -318,8 +381,10 @@ async def prisindeks(request: PrisIndeksRequest):
         estimater[a.id] = est
 
     for t, m in models.items():
-        logger.info("Prisindeks [%s]: %d handler, kr/m² i dag=%s, vækst=%.1f%%",
-                    t, m["n"], m["kr_m2_i_dag"], m["aarlig_vaekst"] * 100)
+        logger.info("Prisindeks [%s]: %d handler, kr/m²≈%s (ved %s m²), vækst=%.1f%%, "
+                    "areal-elasticitet=%.2f, indekseret=%s",
+                    t, m["n"], m["kr_m2_i_dag"], m["ref_areal"], m["aarlig_vaekst"] * 100,
+                    m["b_size"], m["indekseret"])
     return {"models": models, "estimater": estimater}
 
 

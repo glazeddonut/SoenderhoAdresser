@@ -58,7 +58,8 @@ melder `bbr_enabled: false`, og UI viser en hjælpetekst).
 | `api/fbb.py` | Fredede bygninger i bbox fra Slots- og Kulturstyrelsen WFS (`fetch_listed_buildings`) |
 | `api/water.py` | Vanddata fra OSM Overpass + `WaterIndex` (spatial grid til afstandsberegning) |
 | `api/boligsiden.py` | Til-salg-tjek via `curl_cffi` (`check_for_sale`) + salgshistorik via `httpx` (`fetch_registrations`) |
-| `api/prisindeks.py` | Markedspris-model: log-lineær kr/m²-trend + estimat pr. bolig (`build_model`, `estimate`) |
+| `api/prisindeks.py` | Markedspris-model: hedonisk kr/m²-model + estimat pr. bolig (`build_model`, `estimate`) |
+| `api/markedsindeks.py` | Fanø-prisudvikling fra Finans Danmark via Boligas `rkrsearch` (`fetch_market_index`) |
 | `static/index.html` | UI: kontroller, filtre, tabel |
 | `static/app.js` | Kort, polygon, søgning, filtrering, auto-tjek af Boligsiden |
 | `static/style.css` | Styling |
@@ -137,17 +138,27 @@ boligareal, bebygget_areal, opfoerelse_aar, tagmateriale, fredet, vand_afstand`.
   `family` (familiehandel — **ekskluderes**, kunstigt lav), `other` (auktion/andet, ofte uden areal).
 - `search/cases`-bulk-API'et er **ubrugeligt** til dette (mangler handelstype og salgsdato).
 
-### Markedspris-estimat (`api/prisindeks.py`)
-- Model: kun `normal`-handler med areal+dato, nyere end 25 år. Log-lineær regression af
-  ln(kr/m²) mod tid → årlig vækst (klampet til [-3%, +15%]). Områdets kr/m² i dag = **median**
-  af de til-i-dag-fremskrevne kr/m². Estimat = **områdets kr/m² × boligens m²**.
+### Markedspris-estimat (`api/prisindeks.py`, `api/markedsindeks.py`)
+- **Hedonisk log-log model** pr. boligtype: `ln(kr/m²) = niveau + b_tid·tid + b_areal·ln(areal)`,
+  fittet med OLS på `normal`-handler (areal ≥ 15 m²). Niveauet sættes robust som **medianen
+  af residualerne**. Estimat = størrelses- og tidsjusteret kr/m² × boligens m².
+- **`tid` = markedsudviklings-faktoren, 0 = i dag.** Primært `ln(indeks_ved_salg / indeks_nu)`
+  fra et **rigtigt Fanø-prisindeks** (Finans Danmark/RKR via Boligas `rkrsearch`, kvartalsvist,
+  pr. type) — så hvert salg fremskrives fra sit konkrete kvartal med den faktiske markedsudvikling
+  (fanger fx sommerhus-boomet 2020-22). Fordi `tid = 0` i dag, forsvinder b_tid ud af estimatet;
+  den bruges kun til at fjerne markedsudviklingen når niveauet fastsættes. **Fallback** (indeks
+  utilgængeligt): `tid = år − nu` med en flad, klampet årlig rate.
+- **b_areal** = størrelseseffekt, klampet til [-0,8, 0]: små huse er dyrere pr. m² (Fanø helårs
+  ~-0,50, fritids ~-0,52 → et 80 m² helårshus dyrere pr. m² end et 267 m²). Kræver ≥ 15 handler
+  for størrelsesleddet, ellers kun tidsled; ≥ 4 for tidsled.
 - **Boligens egen salgshistorik indgår IKKE i estimatet** (bevidst valg): en gammel købspris
   fanger ikke efterfølgende istandsættelse og undervurderede fx Gammel Byvej 6. Den seneste
   frie handel returneres kun som oplysning (vises i popup, ikke i beregningen).
 - **Segmenteret på boligtype (VIGTIGT):** helårshuse og fritidshuse har vidt forskelligt
-  prisniveau OG udvikling (Sønderho: fritidshuse ~22.400 kr/m² vs. helårshuse ~12.600 kr/m²),
-  så der bygges en separat model pr. BBR-type. Frontenden sender `type` med hver adresse;
-  typer med < 8 frie handler falder tilbage til den samlede model (`indeks_basis` viser hvilken).
+  prisniveau OG udvikling, så der bygges en separat model pr. BBR-type. Frontenden sender
+  `type` med hver adresse; typer med < 8 frie handler falder tilbage til den samlede model
+  (`indeks_basis` viser hvilken). `kr_m2_i_dag` i modellen er beregnet ved medianstørrelsen
+  (`ref_areal`), da kr/m² nu afhænger af areal.
 - Frontenden: knap "Beregn markedspriser" crawler alle adresser i resultatet (up front, cachet),
   viser ét indeks pr. type + kolonner "Markedsestimat"/"Off. vurdering" + nedbrydning i popup.
 
