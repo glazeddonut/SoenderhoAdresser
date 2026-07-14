@@ -75,31 +75,23 @@ def build_model(sales: list[dict]) -> dict:
 
 
 def estimate(model: dict, m2: float | None, own_sales: list[dict]) -> dict:
-    """Estimér markedspris for én bolig. own_sales: boligens egne frie handler [{price, date}]."""
-    b, now, kr = model["b"], model["now"], model["kr_m2_i_dag"]
+    """Estimér markedspris for én bolig ud fra områdets kr/m² × boligens m².
 
-    est_areal = round(kr * m2) if (kr and m2) else None
+    Boligens egen salgshistorik indgår IKKE i estimatet (en gammel købspris fanger
+    ikke efterfølgende istandsættelse). Den seneste frie handel returneres kun som
+    oplysning til visning.
+    """
+    kr = model["kr_m2_i_dag"]
+    marked = round(kr * m2) if (kr and m2) else None
 
-    est_egen = None
     seneste = None
     valid = [s for s in own_sales if s.get("price") and s.get("date")]
     if valid:
         last = max(valid, key=lambda s: s["date"])
         seneste = {"pris": last["price"], "dato": last["date"][:10]}
-        est_egen = round(last["price"] * math.exp(b * (now - _year_frac(last["date"]))))
-
-    if est_egen and est_areal:
-        # Vægt den nyere kilde højst: en frisk egen-handel vejer op til 0,7.
-        age = now - _year_frac(last["date"])
-        w = max(0.2, min(0.7, 1 - age / 20))
-        marked = round(w * est_egen + (1 - w) * est_areal)
-    else:
-        marked = est_egen or est_areal
 
     return {
         "marked": marked,
-        "marked_areal": est_areal,
-        "marked_egen": est_egen,
         "seneste_salg": seneste,
         "antal_frie_salg": len(valid),
     }

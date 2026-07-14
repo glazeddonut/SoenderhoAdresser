@@ -140,8 +140,10 @@ boligareal, bebygget_areal, opfoerelse_aar, tagmateriale, fredet, vand_afstand`.
 ### Markedspris-estimat (`api/prisindeks.py`)
 - Model: kun `normal`-handler med areal+dato, nyere end 25 år. Log-lineær regression af
   ln(kr/m²) mod tid → årlig vækst (klampet til [-3%, +15%]). Områdets kr/m² i dag = **median**
-  af de til-i-dag-fremskrevne kr/m². Estimat = vægtet snit af (områdets kr/m² × boligens m²)
-  og (boligens egen sidste frie handel, fremskrevet); egen-handel vejer mest når den er ny.
+  af de til-i-dag-fremskrevne kr/m². Estimat = **områdets kr/m² × boligens m²**.
+- **Boligens egen salgshistorik indgår IKKE i estimatet** (bevidst valg): en gammel købspris
+  fanger ikke efterfølgende istandsættelse og undervurderede fx Gammel Byvej 6. Den seneste
+  frie handel returneres kun som oplysning (vises i popup, ikke i beregningen).
 - **Segmenteret på boligtype (VIGTIGT):** helårshuse og fritidshuse har vidt forskelligt
   prisniveau OG udvikling (Sønderho: fritidshuse ~22.400 kr/m² vs. helårshuse ~12.600 kr/m²),
   så der bygges en separat model pr. BBR-type. Frontenden sender `type` med hver adresse;

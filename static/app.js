@@ -269,8 +269,6 @@ async function beregnMarkedspriser() {
       const e = estimater[r.id];
       if (!e) return;
       r.markedsestimat = e.marked;
-      r.marked_areal = e.marked_areal;
-      r.marked_egen = e.marked_egen;
       r.seneste_salg = e.seneste_salg;
       r.off_vurdering = e.off_vurdering;
       r.antal_frie_salg = e.antal_frie_salg;
@@ -390,8 +388,7 @@ function updateMap() {
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
         ${r.tagmateriale ? `<div>Tag: <b>${TAG_LABELS[r.tagmateriale] || r.tagmateriale}</b></div>` : ''}
         ${r.vand_afstand != null ? `<div>Afstand til vand: <b>${r.vand_afstand.toLocaleString('da-DK')} m</b></div>` : ''}
-        ${r.markedsestimat != null ? `<div class="popup-estimat">Markedsestimat: <b>${formatKr(r.markedsestimat)}</b></div>` : ''}
-        ${r.markedsestimat != null ? `<div class="popup-sub">Områdepris${r.indeks_basis ? ' (' + (BASIS_LABELS[r.indeks_basis] || r.indeks_basis) + ')' : ''}: ${formatKr(r.marked_areal)} · Egen historik: ${formatKr(r.marked_egen)}</div>` : ''}
+        ${r.markedsestimat != null ? `<div class="popup-estimat">Markedsestimat${r.indeks_basis ? ' (' + (BASIS_LABELS[r.indeks_basis] || r.indeks_basis) + ')' : ''}: <b>${formatKr(r.markedsestimat)}</b></div>` : ''}
         ${r.seneste_salg ? `<div class="popup-sub">Seneste frie salg: ${r.seneste_salg.pris.toLocaleString('da-DK')} kr. (${r.seneste_salg.dato})</div>` : ''}
         ${r.off_vurdering != null ? `<div class="popup-sub">Off. vurdering: ${r.off_vurdering.toLocaleString('da-DK')} kr.</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
