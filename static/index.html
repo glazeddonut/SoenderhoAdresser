@@ -24,7 +24,9 @@
             <button id="place-btn" onclick="placePostnr()">Placer</button>
           </div>
           <button id="search-btn" onclick="search()">Søg i polygon</button>
+          <button id="pris-btn" onclick="beregnMarkedspriser()" disabled>Beregn markedspriser</button>
           <div id="status"></div>
+          <div id="pris-indeks"></div>
         </div>
 
         <div class="control-group">
@@ -120,6 +122,8 @@
               <th data-col="opfoerelse_aar" onclick="sortBy('opfoerelse_aar')">Byggeår <span class="sort-icon"></span></th>
               <th data-col="vand_afstand" onclick="sortBy('vand_afstand')">Afstand til vand <span class="sort-icon"></span></th>
               <th data-col="fredet" onclick="sortBy('fredet')">Fredet <span class="sort-icon"></span></th>
+              <th data-col="markedsestimat" onclick="sortBy('markedsestimat')">Markedsestimat <span class="sort-icon"></span></th>
+              <th data-col="off_vurdering" onclick="sortBy('off_vurdering')">Off. vurdering <span class="sort-icon"></span></th>
               <th data-col="pris" onclick="sortBy('pris')">Udbudspris <span class="sort-icon"></span></th>
             </tr>
           </thead>

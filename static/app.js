@@ -54,6 +54,14 @@ const TYPE_LABELS = {
   'andet': 'Andet',
 };
 
+const BASIS_LABELS = {
+  'helårshus': 'helårshuse',
+  'fritidshus': 'fritidshuse',
+  'andet': 'andet',
+  'ukendt': 'alle',
+  'alle': 'alle',
+};
+
 let map, drawnItems, currentPolygonLayer, markerLayer;
 let allResults = [];
 let filteredResults = [];
@@ -209,11 +217,74 @@ async function search() {
     allResults = await res.json();
     setStatus('', '');
     populateTagFilter();
+    document.getElementById('pris-btn').disabled = allResults.length === 0;
+    document.getElementById('pris-indeks').textContent = '';
     applyFilters();
   } catch (e) {
     setStatus(`Fejl: ${e.message}`, 'error');
   } finally {
     document.getElementById('search-btn').disabled = false;
+  }
+}
+
+function formatKr(v) {
+  return v != null ? Math.round(v).toLocaleString('da-DK') + ' kr.' : '—';
+}
+
+function renderPrisIndeks(models) {
+  const el = document.getElementById('pris-indeks');
+  const line = (label, m) => {
+    if (!m || !m.kr_m2_i_dag) return '';
+    const vaekst = (m.aarlig_vaekst * 100).toLocaleString('da-DK', { maximumFractionDigits: 1 });
+    return `<div><strong>${label}:</strong> ${m.kr_m2_i_dag.toLocaleString('da-DK')} kr/m² i dag `
+      + `· ${vaekst} %/år · ${m.n} frie handler</div>`;
+  };
+  const parts = [
+    line('Helårshuse', models['helårshus']),
+    line('Fritidshuse', models['fritidshus']),
+  ].filter(Boolean);
+  // Vis kun samlet indeks hvis vi ikke kunne opdele på type
+  if (parts.length === 0) parts.push(line('Prisindeks', models['alle']));
+  el.innerHTML = parts.join('') || 'Ikke nok frie handler til et prisindeks i dette område.';
+}
+
+async function beregnMarkedspriser() {
+  if (allResults.length === 0) return;
+  const btn = document.getElementById('pris-btn');
+  btn.disabled = true;
+  setStatus('Beregner markedspriser… (henter salgshistorik — kan tage op til et minut første gang)', 'loading');
+
+  try {
+    const res = await fetch('/api/prisindeks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        addresses: allResults.map((r) => ({ id: r.id, m2: r.boligareal ?? null, type: r.type })),
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { models, estimater } = await res.json();
+
+    allResults.forEach((r) => {
+      const e = estimater[r.id];
+      if (!e) return;
+      r.markedsestimat = e.marked;
+      r.marked_areal = e.marked_areal;
+      r.marked_egen = e.marked_egen;
+      r.seneste_salg = e.seneste_salg;
+      r.off_vurdering = e.off_vurdering;
+      r.antal_frie_salg = e.antal_frie_salg;
+      r.indeks_basis = e.indeks_basis;
+    });
+
+    renderPrisIndeks(models);
+
+    setStatus('', '');
+    applyFilters();
+  } catch (e) {
+    setStatus(`Fejl ved prisberegning: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -319,6 +390,10 @@ function updateMap() {
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
         ${r.tagmateriale ? `<div>Tag: <b>${TAG_LABELS[r.tagmateriale] || r.tagmateriale}</b></div>` : ''}
         ${r.vand_afstand != null ? `<div>Afstand til vand: <b>${r.vand_afstand.toLocaleString('da-DK')} m</b></div>` : ''}
+        ${r.markedsestimat != null ? `<div class="popup-estimat">Markedsestimat: <b>${formatKr(r.markedsestimat)}</b></div>` : ''}
+        ${r.markedsestimat != null ? `<div class="popup-sub">Områdepris${r.indeks_basis ? ' (' + (BASIS_LABELS[r.indeks_basis] || r.indeks_basis) + ')' : ''}: ${formatKr(r.marked_areal)} · Egen historik: ${formatKr(r.marked_egen)}</div>` : ''}
+        ${r.seneste_salg ? `<div class="popup-sub">Seneste frie salg: ${r.seneste_salg.pris.toLocaleString('da-DK')} kr. (${r.seneste_salg.dato})</div>` : ''}
+        ${r.off_vurdering != null ? `<div class="popup-sub">Off. vurdering: ${r.off_vurdering.toLocaleString('da-DK')} kr.</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
           <a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Boligsiden ↗</a>
           <button class="boligsiden-check-btn"
@@ -387,6 +462,8 @@ function updateTable() {
         <td>${r.opfoerelse_aar ?? '—'}</td>
         <td>${r.vand_afstand != null ? r.vand_afstand.toLocaleString('da-DK') + ' m' : '—'}</td>
         <td>${r.fredet ? '<span class="fredet-badge">Ja</span>' : '—'}</td>
+        <td>${r.markedsestimat != null ? '<b>' + r.markedsestimat.toLocaleString('da-DK') + ' kr.</b>' : '—'}</td>
+        <td>${r.off_vurdering != null ? r.off_vurdering.toLocaleString('da-DK') + ' kr.' : '—'}</td>
         <td>${r.til_salg === true
           ? `<span class="forsale-badge">${r.pris ? r.pris.toLocaleString('da-DK') + ' kr.' : 'Ja'}</span>`
           : r.til_salg === false ? '—' : ''}</td>

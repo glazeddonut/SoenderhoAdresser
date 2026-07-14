@@ -9,3 +9,5 @@ venv/
 .env
 # Lokal docker-compose (kopiér fra docker-compose.yml.example)
 docker-compose.yml
+# Cachet salgshistorik (genereret fra Boligsiden)
+data/

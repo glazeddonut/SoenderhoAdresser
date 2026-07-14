@@ -17,6 +17,8 @@ Hver adresse beriges med:
 - **Afstand til nærmeste vand** (kyst, søer, åer) beregnet fra OSM-data.
 - **Til-salg-status + udbudspris** fra Boligsiden.dk (auto-tjekkes når den filtrerede
   liste er ≤ 250 adresser).
+- **Markedspris-estimat** ud fra tidligere frie handler (familiehandler ekskluderet),
+  korreleret med salgsdato og m² — plus offentlig vurdering pr. adresse.
 
 Resultater vises i en filtrerbar, sorterbar tabel og som farvede markører på kortet.
 
@@ -55,7 +57,8 @@ melder `bbr_enabled: false`, og UI viser en hjælpetekst).
 | `api/bbr.py` | Bygningsdata pr. adgangsadresse fra Datafordeler BBR (`fetch_buildings`) |
 | `api/fbb.py` | Fredede bygninger i bbox fra Slots- og Kulturstyrelsen WFS (`fetch_listed_buildings`) |
 | `api/water.py` | Vanddata fra OSM Overpass + `WaterIndex` (spatial grid til afstandsberegning) |
-| `api/boligsiden.py` | URL-bygger + Cloudflare-omgåelse med `curl_cffi` (`build_url`, `check_for_sale`) |
+| `api/boligsiden.py` | Til-salg-tjek via `curl_cffi` (`check_for_sale`) + salgshistorik via `httpx` (`fetch_registrations`) |
+| `api/prisindeks.py` | Markedspris-model: log-lineær kr/m²-trend + estimat pr. bolig (`build_model`, `estimate`) |
 | `static/index.html` | UI: kontroller, filtre, tabel |
 | `static/app.js` | Kort, polygon, søgning, filtrering, auto-tjek af Boligsiden |
 | `static/style.css` | Styling |
@@ -67,6 +70,9 @@ melder `bbr_enabled: false`, og UI viser en hjælpetekst).
 - `GET /api/postnummer/{nr}` → `{nr, navn, bbox:[minLon,minLat,maxLon,maxLat], center, antal}`
   — bruges til at flytte polygonen til et postnummer.
 - `GET /api/boligsiden?vejnavn&husnr&postnr&postnrnavn` → `{til_salg, pris, url}`.
+- `POST /api/prisindeks` `{addresses:[{id, m2}]}` → `{model, estimater:{id:{...}}}`. Bygger
+  områdets kr/m²-indeks af tidligere frie handler og estimerer markedspris pr. bolig.
+  Cacher salgshistorik pr. adresse til `data/salgshistorik.json` (overlever genstart).
 - `GET /` → `static/index.html`. `/static/*` serveres med `no-cache` (se nedenfor).
 
 ## Resultat-objektet (pr. adresse)
@@ -120,6 +126,28 @@ boligareal, bebygget_areal, opfoerelse_aar, tagmateriale, fredet, vand_afstand`.
   `schema.org/Product` → `offers.price`.
 - **URL-slug:** `vejnavn-husnr-postnr-postnrnavn`, æ→ae ø→oe å→aa, mellemrum→bindestreg, lowercase.
   I frontenden: brug `data-`-attributter (IKKE `encodeURIComponent` i onclick → dobbelt-encoding).
+
+### Boligsiden API — salgshistorik + offentlig vurdering (`api/boligsiden.py`)
+- **`api.boligsiden.dk` er tilgængeligt med almindelig `httpx`** (User-Agent-header, ingen
+  Cloudflare/`curl_cffi` nødvendig) og tåler bursts — crawles server-side med semaphore.
+- **`GET /addresses/{id}` hvor `{id}` = DAWA's enhedsadresse-`id`** (matcher Boligsidens
+  `addressID`; `adgangsadresseid` giver 404). Returnerer `registrations[]`, `latestValuation`
+  (offentlig vurdering), `livingArea`.
+- Hver registrering: `amount`, `area`, `date`, `perAreaPrice`, **`type`** = `normal` (fri handel),
+  `family` (familiehandel — **ekskluderes**, kunstigt lav), `other` (auktion/andet, ofte uden areal).
+- `search/cases`-bulk-API'et er **ubrugeligt** til dette (mangler handelstype og salgsdato).
+
+### Markedspris-estimat (`api/prisindeks.py`)
+- Model: kun `normal`-handler med areal+dato, nyere end 25 år. Log-lineær regression af
+  ln(kr/m²) mod tid → årlig vækst (klampet til [-3%, +15%]). Områdets kr/m² i dag = **median**
+  af de til-i-dag-fremskrevne kr/m². Estimat = vægtet snit af (områdets kr/m² × boligens m²)
+  og (boligens egen sidste frie handel, fremskrevet); egen-handel vejer mest når den er ny.
+- **Segmenteret på boligtype (VIGTIGT):** helårshuse og fritidshuse har vidt forskelligt
+  prisniveau OG udvikling (Sønderho: fritidshuse ~22.400 kr/m² vs. helårshuse ~12.600 kr/m²),
+  så der bygges en separat model pr. BBR-type. Frontenden sender `type` med hver adresse;
+  typer med < 8 frie handler falder tilbage til den samlede model (`indeks_basis` viser hvilken).
+- Frontenden: knap "Beregn markedspriser" crawler alle adresser i resultatet (up front, cachet),
+  viser ét indeks pr. type + kolonner "Markedsestimat"/"Off. vurdering" + nedbrydning i popup.
 
 ## Frontend-adfærd (static/app.js)
 

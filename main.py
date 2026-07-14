@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import pathlib
 
 import httpx
 from dotenv import load_dotenv
@@ -13,9 +14,10 @@ from pydantic import BaseModel
 from starlette.responses import Response
 
 from api.bbr import fetch_buildings
-from api.boligsiden import build_url, check_for_sale
+from api.boligsiden import build_url, check_for_sale, fetch_registrations
 from api.dawa import fetch_addresses_in_polygon
 from api.fbb import fetch_listed_buildings
+from api.prisindeks import build_model, estimate
 from api.water import WaterIndex, fetch_water_bodies
 
 DAWA_BASE = "https://api.dataforsyningen.dk"
@@ -32,9 +34,45 @@ _cache: dict[str, list[dict]] = {}
 HELARSBUS_CODES = {"110", "120", "121", "122"}
 FRITIDSHUS_CODES = {"510", "520"}
 
+# Salgshistorik pr. adresse (fra Boligsiden) — caches til disk, så et bygget
+# prisindeks overlever genstart. Offentlige data, ikke følsomme.
+_DATA_DIR = pathlib.Path("data")
+_SALG_CACHE_FILE = _DATA_DIR / "salgshistorik.json"
+_salg_cache: dict[str, dict] = {}
+
+
+def _load_salg_cache() -> None:
+    global _salg_cache
+    try:
+        _salg_cache = json.loads(_SALG_CACHE_FILE.read_text())
+        logger.info("Indlæste salgshistorik-cache: %d adresser", len(_salg_cache))
+    except Exception:
+        _salg_cache = {}
+
+
+def _save_salg_cache() -> None:
+    try:
+        _DATA_DIR.mkdir(exist_ok=True)
+        _SALG_CACHE_FILE.write_text(json.dumps(_salg_cache))
+    except Exception as exc:
+        logger.warning("Kunne ikke gemme salgshistorik-cache: %s", exc)
+
+
+_load_salg_cache()
+
 
 class SearchRequest(BaseModel):
     polygon: list[list[float]]
+
+
+class AddrInput(BaseModel):
+    id: str
+    m2: float | None = None
+    type: str | None = None
+
+
+class PrisIndeksRequest(BaseModel):
+    addresses: list[AddrInput]
 
 
 def polygon_cache_key(polygon: list[list[float]]) -> str:
@@ -209,6 +247,80 @@ async def boligsiden_check(vejnavn: str, husnr: str, postnr: str, postnrnavn: st
     """Check if an address is currently for sale on boligsiden.dk."""
     url = build_url(vejnavn, husnr, postnr, postnrnavn)
     return await asyncio.get_event_loop().run_in_executor(None, check_for_sale, url)
+
+
+@app.post("/api/prisindeks")
+async def prisindeks(request: PrisIndeksRequest):
+    """Byg et markeds-prisindeks af tidligere frie handler og estimér pris pr. bolig.
+
+    Henter (og disk-cacher) salgsregistreringer for de angivne adresser, bygger et
+    områdeindeks af kr/m² over tid (familiehandler frasorteret) og returnerer et
+    estimat pr. adresse.
+    """
+    ids = [a.id for a in request.addresses]
+    missing = [i for i in ids if i not in _salg_cache]
+
+    if missing:
+        logger.info("Henter salgshistorik for %d nye adresser...", len(missing))
+        semaphore = asyncio.Semaphore(20)
+
+        async def fetch_one(client: httpx.AsyncClient, aid: str) -> None:
+            async with semaphore:
+                try:
+                    data = await fetch_registrations(client, aid)
+                except Exception as exc:
+                    logger.debug("Boligsiden-fejl for %s: %s", aid, exc)
+                    data = None
+                _salg_cache[aid] = data or {
+                    "registrations": [], "latestValuation": None, "livingArea": None
+                }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await asyncio.gather(*[fetch_one(client, i) for i in missing])
+        _save_salg_cache()
+
+    # Segmentér frie handler (type=normal) på boligtype — helårshuse og fritidshuse
+    # har forskelligt prisniveau OG forskellig prisudvikling, så de får hver sin model.
+    type_by_id = {a.id: (a.type or "ukendt") for a in request.addresses}
+    sales_by_type: dict[str, list[dict]] = {}
+    all_sales: list[dict] = []
+    for i in ids:
+        boligtype = type_by_id.get(i, "ukendt")
+        for reg in (_salg_cache.get(i) or {}).get("registrations", []):
+            if reg.get("type") == "normal" and reg.get("amount") and reg.get("area") and reg.get("date"):
+                sale = {"price": reg["amount"], "area": reg["area"], "date": reg["date"]}
+                sales_by_type.setdefault(boligtype, []).append(sale)
+                all_sales.append(sale)
+
+    MIN_N = 8  # kræv nok handler til en pålidelig type-model, ellers fald tilbage til "alle"
+    models = {t: build_model(s) for t, s in sales_by_type.items()}
+    models["alle"] = build_model(all_sales)
+
+    def model_for(boligtype: str) -> tuple[str, dict]:
+        m = models.get(boligtype)
+        if m and m["n"] >= MIN_N:
+            return boligtype, m
+        return "alle", models["alle"]
+
+    estimater: dict[str, dict] = {}
+    for a in request.addresses:
+        entry = _salg_cache.get(a.id) or {}
+        own = [
+            {"price": reg["amount"], "date": reg["date"]}
+            for reg in entry.get("registrations", [])
+            if reg.get("type") == "normal" and reg.get("amount") and reg.get("date")
+        ]
+        m2 = a.m2 or entry.get("livingArea")
+        basis, model = model_for(a.type or "ukendt")
+        est = estimate(model, m2, own)
+        est["off_vurdering"] = entry.get("latestValuation")
+        est["indeks_basis"] = basis  # hvilken type-model estimatet bygger på
+        estimater[a.id] = est
+
+    for t, m in models.items():
+        logger.info("Prisindeks [%s]: %d handler, kr/m² i dag=%s, vækst=%.1f%%",
+                    t, m["n"], m["kr_m2_i_dag"], m["aarlig_vaekst"] * 100)
+    return {"models": models, "estimater": estimater}
 
 
 @app.get("/")

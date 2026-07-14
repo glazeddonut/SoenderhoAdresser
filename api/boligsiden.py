@@ -1,7 +1,40 @@
 import json
 import re
 
+import httpx
 from curl_cffi import requests as cffi_requests
+
+BOLIGSIDEN_API = "https://api.boligsiden.dk"
+
+
+async def fetch_registrations(client: httpx.AsyncClient, address_id: str) -> dict | None:
+    """Hent salgsregistreringer + offentlig vurdering for én adresse fra Boligsidens API.
+
+    address_id er DAWA's enhedsadresse-id (matcher Boligsidens addressID).
+    Returnerer None hvis adressen ikke findes hos Boligsiden.
+    """
+    resp = await client.get(
+        f"{BOLIGSIDEN_API}/addresses/{address_id}",
+        headers={"User-Agent": "SoenderhoAdresser/1.0"},
+    )
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    registrations = [
+        {
+            "amount": r.get("amount"),
+            "area": r.get("area"),
+            "date": r.get("date"),
+            "perAreaPrice": r.get("perAreaPrice"),
+            "type": r.get("type"),  # normal | family | other
+        }
+        for r in data.get("registrations", [])
+    ]
+    return {
+        "registrations": registrations,
+        "latestValuation": data.get("latestValuation"),
+        "livingArea": data.get("livingArea"),
+    }
 
 
 def build_url(vejnavn: str, husnr: str, postnr: str, postnrnavn: str) -> str:
