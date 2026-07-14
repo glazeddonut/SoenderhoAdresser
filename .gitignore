@@ -7,3 +7,5 @@ venv/
 .venv/
 .DS_Store
 .env
+# Lokal docker-compose (kopiér fra docker-compose.yml.example)
+docker-compose.yml

@@ -1,0 +1,15 @@
+services:
+  soenderho:
+    build: .
+    image: soenderho-adresser:latest
+    container_name: soenderho-adresser
+    restart: unless-stopped
+    ports:
+      # Vært:Container — ram appen på http://<server-ip>:8000
+      - "8000:8000"
+    # BBR-credentials læses fra .env (samme fil som ved lokal kørsel).
+    # Uden gyldige credentials vises adresser uden bygningstype/areal.
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
