@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "soenderho",
-      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeExecutable": "uvicorn",
       "runtimeArgs": ["main:app", "--port", "8000"],
       "port": 8000
     }

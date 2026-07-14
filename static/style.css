@@ -101,6 +101,40 @@ input:focus {
   gap: 8px;
 }
 
+.postnr-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.postnr-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+#place-btn {
+  padding: 9px 14px;
+  background: #fff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#place-btn:hover {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+
+#place-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 #search-btn {
   width: 100%;
   padding: 9px 16px;

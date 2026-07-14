@@ -131,6 +131,64 @@ function getPolygon() {
   return latlngs.map((ll) => [ll.lng, ll.lat]);
 }
 
+async function placePostnr() {
+  const nr = document.getElementById('postnr-input').value.trim();
+  if (!/^\d{4}$/.test(nr)) {
+    setStatus('Indtast et gyldigt 4-cifret postnummer.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('place-btn');
+  btn.disabled = true;
+  setStatus('Finder postnummer…', 'loading');
+
+  try {
+    const res = await fetch(`/api/postnummer/${nr}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const d = await res.json();
+    const [minLon, minLat, maxLon, maxLat] = d.bbox;
+    const padLon = (maxLon - minLon) * 0.03 || 0.002;
+    const padLat = (maxLat - minLat) * 0.03 || 0.002;
+    const ring = [
+      [minLon - padLon, minLat - padLat],
+      [minLon - padLon, maxLat + padLat],
+      [maxLon + padLon, maxLat + padLat],
+      [maxLon + padLon, minLat - padLat],
+      [minLon - padLon, minLat - padLat],
+    ];
+
+    drawnItems.clearLayers();
+    currentPolygonLayer = L.polygon(
+      ring.map(([lon, lat]) => [lat, lon]),
+      { color: '#6366f1', fillOpacity: 0.08, weight: 2 }
+    );
+    drawnItems.addLayer(currentPolygonLayer);
+    map.fitBounds(currentPolygonLayer.getBounds(), { padding: [30, 30] });
+
+    // Clear previous results — they belong to the old area
+    allResults = [];
+    filteredResults = [];
+    markerLayer.clearLayers();
+    document.getElementById('results-count').textContent = '';
+    updateTable();
+
+    const antal = d.antal >= 25000
+      ? '25.000+'
+      : d.antal.toLocaleString('da-DK');
+    setStatus(
+      `Polygon placeret over ${d.navn} (${antal} adresser i postnummeret). Juster polygonen og klik “Søg i polygon”.`,
+      ''
+    );
+  } catch (e) {
+    setStatus(`Fejl: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function search() {
   const polygon = getPolygon();
   if (!polygon) {
@@ -167,6 +225,8 @@ function applyFilters() {
   const maxBeb = parseFloat(document.getElementById('filter-beb-max').value) || Infinity;
   const minAar = parseInt(document.getElementById('filter-aar-min').value) || 0;
   const maxAar = parseInt(document.getElementById('filter-aar-max').value) || 9999;
+  const minVand = parseFloat(document.getElementById('filter-vand-min').value) || 0;
+  const maxVand = parseFloat(document.getElementById('filter-vand-max').value) || Infinity;
 
   const tagFilter = document.getElementById('filter-tag').value;
   const fredningFilter = document.getElementById('filter-fredet').value;
@@ -185,6 +245,12 @@ function applyFilters() {
     if (r.opfoerelse_aar != null) {
       if (r.opfoerelse_aar < minAar || r.opfoerelse_aar > maxAar) return false;
     } else if (minAar > 0 || maxAar < 9999) {
+      return false;
+    }
+
+    if (r.vand_afstand != null) {
+      if (r.vand_afstand < minVand || r.vand_afstand > maxVand) return false;
+    } else if (minVand > 0 || maxVand < Infinity) {
       return false;
     }
 
@@ -252,6 +318,7 @@ function updateMap() {
         ${r.bebygget_areal != null ? `<div>Bebygget areal: <b>${r.bebygget_areal} m²</b></div>` : ''}
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
         ${r.tagmateriale ? `<div>Tag: <b>${TAG_LABELS[r.tagmateriale] || r.tagmateriale}</b></div>` : ''}
+        ${r.vand_afstand != null ? `<div>Afstand til vand: <b>${r.vand_afstand.toLocaleString('da-DK')} m</b></div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
           <a href="${boligsidenUrl(r)}" target="_blank" class="boligsiden-link">Boligsiden ↗</a>
           <button class="boligsiden-check-btn"
@@ -318,6 +385,7 @@ function updateTable() {
         <td>${r.boligareal != null ? r.boligareal + ' m²' : '—'}</td>
         <td>${r.bebygget_areal != null ? r.bebygget_areal + ' m²' : '—'}</td>
         <td>${r.opfoerelse_aar ?? '—'}</td>
+        <td>${r.vand_afstand != null ? r.vand_afstand.toLocaleString('da-DK') + ' m' : '—'}</td>
         <td>${r.fredet ? '<span class="fredet-badge">Ja</span>' : '—'}</td>
         <td>${r.til_salg === true
           ? `<span class="forsale-badge">${r.pris ? r.pris.toLocaleString('da-DK') + ' kr.' : 'Ja'}</span>`
@@ -362,7 +430,7 @@ let _boligsidenChecking = false;
 
 async function autocheckBoligsiden() {
   if (_boligsidenChecking) return;
-  if (filteredResults.length === 0 || filteredResults.length > 50) return;
+  if (filteredResults.length === 0 || filteredResults.length > 250) return;
 
   // Only check addresses not yet looked up
   const unchecked = filteredResults.filter((r) => r.til_salg === undefined);
@@ -485,5 +553,8 @@ async function checkConfig() {
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
   checkConfig();
+  document.getElementById('postnr-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); placePostnr(); }
+  });
   search();
 });

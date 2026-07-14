@@ -10,11 +10,15 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.responses import Response
 
 from api.bbr import fetch_buildings
 from api.boligsiden import build_url, check_for_sale
 from api.dawa import fetch_addresses_in_polygon
 from api.fbb import fetch_listed_buildings
+from api.water import WaterIndex, fetch_water_bodies
+
+DAWA_BASE = "https://api.dataforsyningen.dk"
 
 load_dotenv()
 
@@ -92,11 +96,19 @@ async def search(request: SearchRequest):
             logger.warning("FBB fejl: %s", exc)
             return set()
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        logger.info("Henter adresser fra DAWA og fredningsdata fra FBB...")
-        addresses, listed_buildings = await asyncio.gather(
+    async def safe_fetch_water(client: httpx.AsyncClient, polygon: list) -> list:
+        try:
+            return await fetch_water_bodies(client, polygon)
+        except Exception as exc:
+            logger.warning("Vanddata-fejl: %s", exc)
+            return []
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        logger.info("Henter adresser fra DAWA, fredningsdata fra FBB og vanddata fra OSM...")
+        addresses, listed_buildings, water_lines = await asyncio.gather(
             fetch_addresses_in_polygon(client, request.polygon),
             safe_fetch_listed(client, request.polygon),
+            safe_fetch_water(client, request.polygon),
         )
         logger.info("Fandt %d adresser, %d fredede bygninger%s",
                     len(addresses), len(listed_buildings),
@@ -133,13 +145,63 @@ async def search(request: SearchRequest):
                 "opfoerelse_aar": aar,
                 "tagmateriale": tagmateriale,
                 "fredet": bool(id_lokal and id_lokal in listed_buildings),
+                "vand_afstand": None,
             }
 
         results = list(await asyncio.gather(*[enrich(a) for a in addresses]))
 
+    if water_lines and results:
+        lat0 = sum(p[1] for p in request.polygon) / len(request.polygon)
+        index = WaterIndex(water_lines, lat0)
+        for r in results:
+            if r["x"] is not None and r["y"] is not None:
+                d = index.distance(r["x"], r["y"])
+                r["vand_afstand"] = round(d) if d is not None else None
+        logger.info("Beregnede afstand til vand for %d adresser (%d vandsegmenter)",
+                    len(results), len(index.segments))
+
     logger.info("Færdig: %d resultater cachet", len(results))
     _cache[cache_key] = results
     return results
+
+
+@app.get("/api/postnummer/{nr}")
+async def postnummer_area(nr: str):
+    """Return the geographic extent (bbox + center) of a postal code's addresses."""
+    if not (nr.isdigit() and len(nr) == 4):
+        return JSONResponse({"error": "Ugyldigt postnummer"}, status_code=400)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        meta = await client.get(f"{DAWA_BASE}/postnumre/{nr}")
+        if meta.status_code != 200:
+            return JSONResponse({"error": "Postnummer ikke fundet"}, status_code=404)
+        navn = meta.json().get("navn", "")
+
+        # Addresses come back in id order (spatially unsorted), so a few thousand
+        # are enough to determine the extent. DAWA also rejects deep paging, so cap.
+        addresses: list[dict] = []
+        for page in range(1, 26):
+            resp = await client.get(
+                f"{DAWA_BASE}/adresser",
+                params={"postnr": nr, "struktur": "mini", "per_side": 1000, "side": page},
+            )
+            if resp.status_code != 200:
+                break
+            batch = resp.json()
+            if not batch:
+                break
+            addresses.extend(batch)
+            if len(batch) < 1000:
+                break
+
+    xs = [a["x"] for a in addresses if a.get("x") is not None]
+    ys = [a["y"] for a in addresses if a.get("y") is not None]
+    if not xs or not ys:
+        return JSONResponse({"error": "Ingen adresser i postnummeret"}, status_code=404)
+
+    bbox = [min(xs), min(ys), max(xs), max(ys)]
+    center = [(min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2]
+    return {"nr": nr, "navn": navn, "bbox": bbox, "center": center, "antal": len(addresses)}
 
 
 @app.get("/api/boligsiden")
@@ -151,7 +213,21 @@ async def boligsiden_check(vejnavn: str, husnr: str, postnr: str, postnrnavn: st
 
 @app.get("/")
 async def read_index():
-    return FileResponse("static/index.html")
+    return FileResponse(
+        "static/index.html", headers={"Cache-Control": "no-cache, must-revalidate"}
+    )
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Serve static files with no-cache so the browser always revalidates.
+
+    Avoids stale app.js/style.css after edits (otherwise a hard refresh is needed).
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
+app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
