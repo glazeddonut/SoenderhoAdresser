@@ -160,7 +160,10 @@ boligareal, bebygget_areal, opfoerelse_aar, tagmateriale, fredet, vand_afstand`.
   (`indeks_basis` viser hvilken). `kr_m2_i_dag` i modellen er beregnet ved medianstørrelsen
   (`ref_areal`), da kr/m² nu afhænger af areal.
 - Frontenden: knap "Beregn markedspriser" crawler alle adresser i resultatet (up front, cachet),
-  viser ét indeks pr. type + kolonner "Markedsestimat"/"Off. vurdering" + nedbrydning i popup.
+  viser ét indeks pr. type + kolonner "Markedsestimat (±20%)"/"Off. vurdering" + nedbrydning i popup.
+- **Estimatet vises som et interval (midtpunkt ±20 %)**, ikke ét tal — det er et *typisk niveau*
+  for type+m², ikke en vurdering af det konkrete hus. Enkelthuse afviger rutinemæssigt: stand,
+  istandsættelse, mikro-placering og charme (fx et fredet 1793-hus) ses ikke i register-data.
 
 ## Frontend-adfærd (static/app.js)
 

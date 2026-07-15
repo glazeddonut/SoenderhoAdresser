@@ -231,6 +231,17 @@ function formatKr(v) {
   return v != null ? Math.round(v).toLocaleString('da-DK') + ' kr.' : '—';
 }
 
+// Markedsestimatet er et typisk niveau (±20 %), ikke en vurdering af det konkrete hus.
+const ESTIMAT_SPREAD = 0.20;
+
+function estimatInterval(mid) {
+  return { low: Math.round(mid * (1 - ESTIMAT_SPREAD)), high: Math.round(mid * (1 + ESTIMAT_SPREAD)) };
+}
+
+function formatMio(v) {
+  return (v / 1e6).toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 function renderPrisIndeks(models) {
   const el = document.getElementById('pris-indeks');
   const line = (label, m) => {
@@ -394,8 +405,8 @@ function updateMap() {
         ${r.opfoerelse_aar ? `<div>Opført: <b>${r.opfoerelse_aar}</b></div>` : ''}
         ${r.tagmateriale ? `<div>Tag: <b>${TAG_LABELS[r.tagmateriale] || r.tagmateriale}</b></div>` : ''}
         ${r.vand_afstand != null ? `<div>Afstand til vand: <b>${r.vand_afstand.toLocaleString('da-DK')} m</b></div>` : ''}
-        ${r.markedsestimat != null ? `<div class="popup-estimat">Markedsestimat${r.indeks_basis ? ' (' + (BASIS_LABELS[r.indeks_basis] || r.indeks_basis) + ')' : ''}: <b>${formatKr(r.markedsestimat)}</b></div>` : ''}
-        ${r.markedsestimat != null && r.kr_m2 != null && r.boligareal ? `<div class="popup-sub">${r.kr_m2.toLocaleString('da-DK')} kr/m² × ${r.boligareal} m²</div>` : ''}
+        ${r.markedsestimat != null ? `<div class="popup-estimat">Markedsestimat${r.indeks_basis ? ' (' + (BASIS_LABELS[r.indeks_basis] || r.indeks_basis) + ')' : ''}: <b>${estimatInterval(r.markedsestimat).low.toLocaleString('da-DK')} – ${estimatInterval(r.markedsestimat).high.toLocaleString('da-DK')} kr.</b></div>` : ''}
+        ${r.markedsestimat != null ? `<div class="popup-sub">Midtpunkt ${formatKr(r.markedsestimat)}${r.kr_m2 != null && r.boligareal ? ` · ${r.kr_m2.toLocaleString('da-DK')} kr/m² × ${r.boligareal} m²` : ''}</div>` : ''}
         ${r.seneste_salg ? `<div class="popup-sub">Seneste frie salg: ${r.seneste_salg.pris.toLocaleString('da-DK')} kr. (${r.seneste_salg.dato})</div>` : ''}
         ${r.off_vurdering != null ? `<div class="popup-sub">Off. vurdering: ${r.off_vurdering.toLocaleString('da-DK')} kr.</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
@@ -466,7 +477,7 @@ function updateTable() {
         <td>${r.opfoerelse_aar ?? '—'}</td>
         <td>${r.vand_afstand != null ? r.vand_afstand.toLocaleString('da-DK') + ' m' : '—'}</td>
         <td>${r.fredet ? '<span class="fredet-badge">Ja</span>' : '—'}</td>
-        <td>${r.markedsestimat != null ? '<b>' + r.markedsestimat.toLocaleString('da-DK') + ' kr.</b>' : '—'}</td>
+        <td>${r.markedsestimat != null ? formatMio(estimatInterval(r.markedsestimat).low) + '–' + formatMio(estimatInterval(r.markedsestimat).high) + ' mio.' : '—'}</td>
         <td>${r.off_vurdering != null ? r.off_vurdering.toLocaleString('da-DK') + ' kr.' : '—'}</td>
         <td>${r.til_salg === true
           ? `<span class="forsale-badge">${r.pris ? r.pris.toLocaleString('da-DK') + ' kr.' : 'Ja'}</span>`
